@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>Gestionnaire Imports</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="icon" href="../../assets/icons/favicon-1.ico" />
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+
+        .pertes-column {
+            background-color: #fff3cd !important;
+        }
+
+        .totals-cell {
+            background-color: #d4edda !important;
+            font-weight: bold;
+        }
+
+        .excel-table input {
+            width: 100%;
+            border: none;
+            padding: 4px;
+            background: transparent;
+        }
+
+        .excel-table input:focus {
+            outline: 2px solid #0d6efd;
+            background: white;
+        }
+
+        .excel-container {
+            max-height: 600px;
+            overflow-y: auto;
+            overflow-x: auto;
+        }
+
+        /* CSS simplifié - plus besoin de tout ce CSS complexe */
+        .status-indicator {
+            font-size: 0.9rem;
+        }
+
+        #summaryTotals {
+            background-color: #e9ecef;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+
+        .excel-table {
+            font-size: 0.9rem;
+        }
+
+        .excel-table th {
+            background-color: #6c757d;
+            color: white;
+            font-weight: 600;
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        .excel-table td {
+            vertical-align: middle;
+            padding: 4px;
+        }
+
+        .calculated-column {
+            background-color: #e9ecef !important;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        #topBtns {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        #topBtns>div {
+            display: flex;
+            gap: 5px;
+        }
+
+        .btn-sm {
+            white-space: nowrap;
+            min-width: 80px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container-fluid py-4">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <div class="row align-items-center g-2">
+                    <!-- Titre principal -->
+                    <div class="col">
+                        <h1 class="h3 mb-0">
+                            <i class="bi bi-file-earmark-excel me-2"></i>
+                            Gestionnaire de Fichiers Excel - Imports
+                        </h1>
+                    </div>
+                    
+                    <!-- Bouton et chemin -->
+                    <div class="col-auto">
+                        <button class="btn btn-light btn-sm" onclick="fileManager.selectFolder()">
+                            <i class="bi bi-folder me-1"></i>
+                            Sélectionner Dossier
+                        </button>
+                    </div>
+                    <div class="col-auto">
+                        <small id="folderPath" class="text-light opacity-75"></small>
+                    </div>
+                </div>
+                
+                <!-- Deuxième ligne pour le sélecteur -->
+                <div class="row mt-2">
+                    <div class="col"></div>
+                    <div class="col-auto">
+                        <select id="handlerSelect" class="form-select form-select-sm">
+                            <option value="file">Fichiers Locaux</option>
+                            <!--<option value="api" disabled>API REST</option>
+                            <option value="bucket" disabled>Cloud Storage</option>-->
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-body">
+                <div id="filesList">
+                    <h4 class="mb-3">
+                        <i class="bi bi-files me-2"></i>
+                        Fichiers Excel
+                    </h4>
+                    <div class="table-responsive">
+                        <table class="table table-hover table-striped" id="filesTable">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th><i class="bi bi-file-text me-1"></i>Nom du fichier</th>
+                                    <th><i class="bi bi-hdd me-1"></i>Taille</th>
+                                    <th><i class="bi bi-clock me-1"></i>Dernière modification</th>
+                                    <th><i class="bi bi-gear me-1"></i>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="filesTableBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="excelViewer" class="d-none">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h4 class="mb-0">
+                            <i class="bi bi-file-earmark-excel me-2"></i>
+                            <span id="currentFileName"></span>
+                        </h4>
+                        <div>
+                            <button class="btn btn-success btn-sm me-2" onclick="excelViewer.saveFile()">
+                                <i class="bi bi-save me-1"></i>
+                                Sauvegarder
+                            </button>
+                            <button class="btn btn-secondary btn-sm" onclick="excelViewer.closeViewer()">
+                                <i class="bi bi-x-lg me-1"></i>
+                                Fermer
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info status-indicator mb-3">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <i class="bi bi-shield-lock me-1"></i>
+                                <span id="lockStatus">Statut: Non verrouillé</span>
+                            </div>
+                            <div class="col-md-6">
+                                <i class="bi bi-pencil me-1"></i>
+                                <span id="editStatus">Édition: Désactivée</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Résumé des totaux -->
+                    <div id="topBtns" class="mb-3">
+                        <!-- Contenu généré dynamiquement -->
+                    </div>
+
+                    <!-- Résumé des totaux -->
+                    <div id="summaryTotals" class="mb-3">
+                        <!-- Contenu généré dynamiquement -->
+                    </div>
+
+                    <!-- Tableau Excel -->
+                    <div class="excel-container">
+                        <table class="table table-bordered table-sm excel-table" id="excelTable">
+                            <!-- Contenu généré dynamiquement -->
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="../js/main.js"></script>
+</body>
+
+</html>

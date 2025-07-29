@@ -1,0 +1,14 @@
+{
+  "folderPath": "C:\\Users\\Utilisateur\\Documents\\testxml",
+  "handler": "file",
+  "settings": {
+    "autoSave": true,
+    "lockTimeout": 300000,
+    "backupEnabled": true
+  },
+  "window": {
+    "width": 1200,
+    "height": 800,
+    "autoHideMenuBar": true
+  }
+}
