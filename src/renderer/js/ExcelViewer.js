@@ -2,6 +2,7 @@ const path = require('path');
 const { ipcRenderer } = require('electron');
 // Chemin absolu depuis le fichier actuel
 const { LabelPrinter } = require(path.join(__dirname, '../../utils/LabelPrinter'));
+
 class ExcelViewer {
     constructor(uiManager) {
         this.uiManager = uiManager;
@@ -114,6 +115,9 @@ class ExcelViewer {
         const totals = this.calculateTotals(data, indices);
         this.displaySummary(totals);
         this.displayTopBtns();
+        
+        // NOUVEAU: Afficher le sélecteur de date d'arrivée
+        this.displayDateSelector(indices);
 
         // --- En-tête ---
         const thead = document.createElement('thead');
@@ -251,6 +255,153 @@ class ExcelViewer {
                 document.querySelectorAll('.row-selector').forEach(cb => cb.checked = checked);
             });
         }
+    }
+
+    // NOUVELLE MÉTHODE: Afficher le sélecteur de date d'arrivée
+    displayDateSelector(indices) {
+        // Vérifier si une colonne date existe
+        if (indices.dateIdx === -1) {
+            return; // Pas de colonne date trouvée
+        }
+
+        // Chercher un conteneur existant ou créer
+        let dateContainer = document.getElementById('dateSelector');
+        if (!dateContainer) {
+            dateContainer = document.createElement('div');
+            dateContainer.id = 'dateSelector';
+            dateContainer.className = 'alert alert-light border mb-3';
+            
+            // Insérer avant le tableau
+            const excelContainer = document.querySelector('.excel-container');
+            if (excelContainer && excelContainer.parentNode) {
+                excelContainer.parentNode.insertBefore(dateContainer, excelContainer);
+            }
+        }
+
+        // Obtenir la date actuelle de la première ligne (si elle existe)
+        let currentDate = '';
+        if (this.currentData && this.currentData.length > 2 && this.currentData[2][indices.dateIdx]) {
+            const firstRowDate = this.currentData[2][indices.dateIdx];
+            // Convertir en format YYYY-MM-DD si nécessaire
+            if (firstRowDate) {
+                const date = new Date(firstRowDate);
+                if (!isNaN(date.getTime())) {
+                    currentDate = date.toISOString().split('T')[0];
+                }
+            }
+        }
+
+        dateContainer.innerHTML = `
+            <div class="row align-items-center">
+                <div class="col-auto">
+                    <strong><i class="bi bi-calendar-date me-2"></i>Date d'arrivée pour toutes les lignes:</strong>
+                </div>
+                <div class="col-auto">
+                    <input type="date" id="globalDatePicker" class="form-control" value="${currentDate}" 
+                           title="Sélectionner une date à appliquer à toutes les lignes">
+                </div>
+                <div class="col-auto">
+                    <button class="btn btn-success btn-sm" onclick="excelViewer.applyGlobalDate()" 
+                            title="Appliquer cette date à toutes les lignes">
+                        <i class="bi bi-calendar-check me-1"></i>
+                        Appliquer à tout
+                    </button>
+                </div>
+                <div class="col-auto">
+                    <button class="btn btn-warning btn-sm" onclick="excelViewer.applyDateToSelected()" 
+                            title="Appliquer cette date uniquement aux lignes sélectionnées">
+                        <i class="bi bi-calendar-plus me-1"></i>
+                        Appliquer aux sélectionnées
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    // NOUVELLE MÉTHODE: Appliquer la date à toutes les lignes
+    applyGlobalDate() {
+        const dateInput = document.getElementById('globalDatePicker');
+        if (!dateInput || !dateInput.value) {
+            this.uiManager.showToast('Veuillez sélectionner une date', 'warning');
+            return;
+        }
+
+        if (!this.currentData || this.currentData.length <= 2) {
+            this.uiManager.showToast('Aucune donnée à modifier', 'warning');
+            return;
+        }
+
+        const indices = this.getColumnIndices(this.currentData[1]);
+        if (indices.dateIdx === -1) {
+            this.uiManager.showToast('Colonne date non trouvée', 'error');
+            return;
+        }
+
+        const selectedDate = dateInput.value;
+        let modifiedRows = 0;
+
+        // Appliquer à toutes les lignes de données (à partir de l'index 2)
+        for (let i = 2; i < this.currentData.length; i++) {
+            // S'assurer que la ligne a assez de colonnes
+            while (this.currentData[i].length <= indices.dateIdx) {
+                this.currentData[i].push('');
+            }
+            
+            this.currentData[i][indices.dateIdx] = selectedDate;
+            modifiedRows++;
+        }
+
+        // Marquer comme modifié et re-rendre
+        this.hasUnsavedChanges = true;
+        this.updateStatus();
+        this.renderTable(this.currentData);
+
+        this.uiManager.showToast(`Date appliquée à ${modifiedRows} ligne(s)`, 'success');
+    }
+
+    // NOUVELLE MÉTHODE: Appliquer la date aux lignes sélectionnées uniquement
+    applyDateToSelected() {
+        const dateInput = document.getElementById('globalDatePicker');
+        if (!dateInput || !dateInput.value) {
+            this.uiManager.showToast('Veuillez sélectionner une date', 'warning');
+            return;
+        }
+
+        const selectedCheckboxes = document.querySelectorAll('.row-selector:checked');
+        if (selectedCheckboxes.length === 0) {
+            this.uiManager.showToast('Veuillez sélectionner au moins une ligne', 'warning');
+            return;
+        }
+
+        const indices = this.getColumnIndices(this.currentData[1]);
+        if (indices.dateIdx === -1) {
+            this.uiManager.showToast('Colonne date non trouvée', 'error');
+            return;
+        }
+
+        const selectedDate = dateInput.value;
+        let modifiedRows = 0;
+
+        // Appliquer uniquement aux lignes sélectionnées
+        selectedCheckboxes.forEach(checkbox => {
+            const rowIndex = parseInt(checkbox.dataset.row);
+            if (this.currentData[rowIndex]) {
+                // S'assurer que la ligne a assez de colonnes
+                while (this.currentData[rowIndex].length <= indices.dateIdx) {
+                    this.currentData[rowIndex].push('');
+                }
+                
+                this.currentData[rowIndex][indices.dateIdx] = selectedDate;
+                modifiedRows++;
+            }
+        });
+
+        // Marquer comme modifié et re-rendre
+        this.hasUnsavedChanges = true;
+        this.updateStatus();
+        this.renderTable(this.currentData);
+
+        this.uiManager.showToast(`Date appliquée à ${modifiedRows} ligne(s) sélectionnée(s)`, 'success');
     }
 
     displayOriginInfo(originData) {
